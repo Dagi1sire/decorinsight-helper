@@ -17,8 +17,8 @@ const analyzeWithGemini = async (imageFile: File, apiKey: string) => {
       reader.readAsDataURL(imageFile);
     });
 
-    // Call Gemini API
-    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent?key=' + apiKey, {
+    // Call Gemini API with updated model name
+    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + apiKey, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
