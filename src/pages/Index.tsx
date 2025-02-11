@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { ImageUpload } from "@/components/ImageUpload";
 import { DecorationAnalysis } from "@/components/DecorationAnalysis";
@@ -51,6 +52,17 @@ const analyzeWithGemini = async (imageFile: File, apiKey: string) => {
     
     // Try to parse the response as JSON
     try {
+      // Find JSON content between ```json and ``` markers
+      const jsonMatch = text.match(/```json\n([\s\S]*?)\n```/);
+      if (jsonMatch) {
+        // Clean the JSON string by removing comments and parsing
+        const jsonStr = jsonMatch[1].replace(/\/\/.*$/gm, '').trim();
+        const parsedData = JSON.parse(jsonStr);
+        console.log('Parsed JSON:', parsedData);
+        return parsedData;
+      }
+      
+      // If no JSON markers found, try parsing the entire text as JSON
       const parsedData = JSON.parse(text);
       console.log('Parsed JSON:', parsedData);
       return parsedData;
@@ -59,9 +71,10 @@ const analyzeWithGemini = async (imageFile: File, apiKey: string) => {
       // If parsing fails, try to extract information from the text
       const lines = text.split('\n');
       const materials = lines
-        .filter(line => line.trim().length > 0) // Filter out empty lines
+        .filter(line => line.trim().length > 0 && !line.startsWith('**') && !line.startsWith('```')) // Filter out empty lines and markdown
         .map(line => {
-          const match = line.match(/([^-]+)-\s*(?:ETB)?\s*(\d+)/i);
+          // Match patterns like "Item name - 1000 ETB" or "Item name: 1000 ETB"
+          const match = line.match(/([^:-]+)(?:-|:)\s*(?:ETB)?\s*(\d+)/i);
           if (match) {
             return {
               name: match[1].trim(),
