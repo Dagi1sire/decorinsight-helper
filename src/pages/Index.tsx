@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { ImageUpload } from "@/components/ImageUpload";
 import { DecorationAnalysis } from "@/components/DecorationAnalysis";
@@ -45,19 +44,35 @@ const analyzeWithGemini = async (imageFile: File, apiKey: string) => {
     }
 
     const data = await response.json();
+    console.log('Gemini API response:', data);
+    
     const text = data.candidates[0].content.parts[0].text;
+    console.log('Extracted text:', text);
     
     // Try to parse the response as JSON
     try {
-      return JSON.parse(text);
+      const parsedData = JSON.parse(text);
+      console.log('Parsed JSON:', parsedData);
+      return parsedData;
     } catch (e) {
+      console.log('Failed to parse as JSON, falling back to text parsing');
       // If parsing fails, try to extract information from the text
       const lines = text.split('\n');
-      const materials = lines.map(line => {
-        const [name, priceStr] = line.split('-').map(s => s.trim());
-        const price = parseInt(priceStr?.match(/\d+/)?.[0] || '0');
-        return { name, price };
-      }).filter(item => item.name && item.price);
+      const materials = lines
+        .filter(line => line.trim().length > 0) // Filter out empty lines
+        .map(line => {
+          const match = line.match(/([^-]+)-\s*(?:ETB)?\s*(\d+)/i);
+          if (match) {
+            return {
+              name: match[1].trim(),
+              price: parseInt(match[2])
+            };
+          }
+          return null;
+        })
+        .filter(item => item !== null);
+      
+      console.log('Extracted materials:', materials);
       return materials;
     }
   } catch (error) {
