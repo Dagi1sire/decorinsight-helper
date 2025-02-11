@@ -2,27 +2,75 @@
 import { useState } from "react";
 import { ImageUpload } from "@/components/ImageUpload";
 import { DecorationAnalysis } from "@/components/DecorationAnalysis";
+import { ApiKeyInput } from "@/components/ApiKeyInput";
 import { toast } from "sonner";
 
-// Temporary mock function - replace with actual AI analysis
-const analyzeDecoration = async (image: File) => {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 2000));
-  
-  // Mock response
-  return [
-    { name: "Balloon Arch", price: 2500 },
-    { name: "Floral Centerpieces", price: 1800 },
-    { name: "LED String Lights", price: 1200 },
-    { name: "Table Runners", price: 800 },
-    { name: "Chair Covers", price: 1500 },
-  ];
+const analyzeWithGemini = async (imageFile: File, apiKey: string) => {
+  try {
+    // Convert image to base64
+    const base64Image = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64 = reader.result as string;
+        resolve(base64.split(',')[1]);
+      };
+      reader.readAsDataURL(imageFile);
+    });
+
+    // Call Gemini API
+    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent?key=' + apiKey, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            {
+              text: "Analyze this party decoration image and list the materials used along with their estimated rental prices in Ethiopian Birr (ETB). Format the response as a JSON array with objects containing 'name' and 'price' properties.",
+            },
+            {
+              inline_data: {
+                mime_type: "image/jpeg",
+                data: base64Image
+              }
+            }
+          ]
+        }]
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to analyze image');
+    }
+
+    const data = await response.json();
+    const text = data.candidates[0].content.parts[0].text;
+    
+    // Try to parse the response as JSON
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      // If parsing fails, try to extract information from the text
+      const lines = text.split('\n');
+      const materials = lines.map(line => {
+        const [name, priceStr] = line.split('-').map(s => s.trim());
+        const price = parseInt(priceStr?.match(/\d+/)?.[0] || '0');
+        return { name, price };
+      }).filter(item => item.name && item.price);
+      return materials;
+    }
+  } catch (error) {
+    console.error('Error analyzing image:', error);
+    throw error;
+  }
 };
 
 const Index = () => {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [materials, setMaterials] = useState<Array<{ name: string; price: number }>>([]);
+  const [apiKey, setApiKey] = useState<string | null>(null);
 
   const handleImageSelect = async (file: File) => {
     try {
@@ -37,8 +85,15 @@ const Index = () => {
       setSelectedImage(imageUrl);
       setIsAnalyzing(true);
 
+      // Check if API key is available
+      if (!apiKey) {
+        toast.error("Please enter your Gemini API key first");
+        setIsAnalyzing(false);
+        return;
+      }
+
       // Analyze image
-      const results = await analyzeDecoration(file);
+      const results = await analyzeWithGemini(file, apiKey);
       setMaterials(results);
       toast.success("Analysis complete!");
     } catch (error) {
@@ -48,6 +103,16 @@ const Index = () => {
       setIsAnalyzing(false);
     }
   };
+
+  if (!apiKey) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-secondary to-primary/10 px-4 py-8">
+        <div className="max-w-4xl mx-auto">
+          <ApiKeyInput onSubmit={setApiKey} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-secondary to-primary/10 px-4 py-8">
